@@ -63,4 +63,5 @@ jobs:
 
       - name: Check MongoDB entries
         run: |
-          docker exec mongodb mongo sensor_data --eval 'db.aggregated_output.find().limit(5).pretty()'
+          docker exec mongodb mongo -u admin -p adminpassword --authenticationDatabase admin sensor_data --eval 'db.aggregated_output.find().limit(5).pretty()'
+
