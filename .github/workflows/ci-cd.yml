@@ -30,9 +30,6 @@ jobs:
         with:
           python-version: '3.9'
 
-      - name: Install dependencies
-        run: pip install -r tests/requirements.txt
-
       - name: Run unit tests
         run: python -m unittest discover tests
 
