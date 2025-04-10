@@ -1,0 +1,7 @@
+FROM python:3.9-alpine
+
+# Install the necessary Python libraries
+RUN pip install --no-cache-dir kafka-python==2.0.5
+RUN pip install --no-cache-dir pymongo
+# Copy your Python script into the container
+COPY consumer/consumer_to_mongo.py /app/consumer_to_mongo.py

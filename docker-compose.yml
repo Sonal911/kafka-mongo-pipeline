@@ -1,0 +1,124 @@
+version: "3.3"
+
+services:
+  broker:
+    image: confluentinc/cp-kafka:7.6.1
+    hostname: broker
+    container_name: broker
+    ports:
+      - "9092:9092"
+      - "9101:9101"
+      - "29092:29092"
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: 'CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT'
+      KAFKA_ADVERTISED_LISTENERS: 'PLAINTEXT://broker:29092,PLAINTEXT_HOST://localhost:9092'
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_JMX_PORT: 9101
+      KAFKA_JMX_HOSTNAME: localhost
+      KAFKA_PROCESS_ROLES: 'broker,controller'
+      KAFKA_CONTROLLER_QUORUM_VOTERS: '1@broker:29093'
+      KAFKA_LISTENERS: 'PLAINTEXT://broker:29092,CONTROLLER://broker:29093,PLAINTEXT_HOST://0.0.0.0:9092'
+      KAFKA_INTER_BROKER_LISTENER_NAME: 'PLAINTEXT'
+      KAFKA_CONTROLLER_LISTENER_NAMES: 'CONTROLLER'
+      KAFKA_LOG_DIRS: '/tmp/kraft-combined-logs'
+      CLUSTER_ID: 'MkU3OEVBNTcwNTJENDM2Qk'
+
+  akhq:
+    image: tchiotludo/akhq:0.25.0
+    ports:
+      - 8080:8080
+    hostname: akhq
+    container_name: akhq
+    depends_on:
+      - broker
+    security_opt:
+      - seccomp:unconfined
+    ulimits:
+      nproc: 65535
+      nofile:
+        soft: 65535
+        hard: 65535
+    environment:
+      JAVA_OPTS: "-Xms64m -Xmx256m"
+      AKHQ_CONFIGURATION: |
+        akhq:
+          connections:
+            docker-kafka-server:
+              properties:
+                bootstrap.servers: "broker:29092"
+
+  topic-creator:
+    image: confluentinc/cp-kafka:7.6.1
+    container_name: topic-creator
+    depends_on:
+      - broker
+    volumes:
+      - ./utils:/utils
+    command:
+      - bash
+      - /utils/create-topics.sh
+
+  sensor-producer:
+    build:
+      context: .
+      dockerfile: producer/Dockerfile.producer
+    container_name: sensor-producer
+    depends_on:
+      - broker
+      - topic-creator
+    environment:
+      - BOOTSTRAP_SERVERS=broker:29092
+    command:
+      - python
+      - -u
+      - /app/producer.py
+
+  sensor-consumer:
+    build:
+      context: .
+      dockerfile: consumer/Dockerfile.consumer
+    container_name: sensor-consumer
+    depends_on:
+      - broker
+      - topic-creator
+      - sensor-producer
+    environment:
+      - BOOTSTRAP_SERVERS=broker:29092
+    command:
+      - python
+      - -u
+      - /app/consumer.py
+    #restart: always
+  
+  mongo-consumer:
+    build:
+      context: .
+      dockerfile: mongo/Dockerfile.mongo
+    container_name: kafka_mongo_consumer
+    depends_on:
+      - mongo
+    environment:
+      - BOOTSTRAP_SERVERS=broker:29092
+      - MONGO_URI=mongodb://admin:adminpassword@mongo:27017/
+    command:
+      - python
+      - -u
+      - /app/consumer_to_mongo.py
+
+  mongo:
+    image: mongo:4.4
+    container_name: mongodb
+    ports:
+      - "27017:27017"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: admin
+      MONGO_INITDB_ROOT_PASSWORD: adminpassword
+    volumes:
+      - mongo_data:/data/db
+
+volumes:
+  mongo_data:
