@@ -51,7 +51,7 @@ jobs:
 
       - name: Check and restart containers if needed
         run: |
-          for service in sensor-producer sensor-consumer kafka_mongo_consumer; do
+          for service in sensor-producer sensor-consumer mongo-consumer; do
             status=$(docker inspect -f '{{.State.Running}}' $service || echo "false")
             if [ "$status" != "true" ]; then
               echo "$service not running. Restarting..."
